@@ -13,6 +13,7 @@
 #include <gmock/gmock.h>
 
 #include <string>
+#include <unistd.h>
 
 #include <process/future.hpp>
 #include <process/gtest.hpp>
@@ -20,6 +21,7 @@
 
 #include <stout/gtest.hpp>
 #include <stout/os.hpp>
+#include <stout/hashset.hpp>
 
 #include <stout/os/pipe.hpp>
 #include <stout/os/read.hpp>
@@ -33,6 +35,8 @@ namespace io = process::io;
 
 using process::Clock;
 using process::Future;
+using process::Queue;
+using process::io::Watcher;
 
 using std::array;
 using std::string;
@@ -481,4 +485,153 @@ TEST_F(IOTest, Redirect)
   // Also make sure the data was properly
   // accumulated in the redirect hook.
   EXPECT_EQ(data, accumulated);
+}
+
+
+TEST_F(IOTest, WatcherWrite) {
+  string path = path::join(sandbox.get(), "test_file");
+
+  ASSERT_SOME(os::touch(path));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path));
+
+  Queue<Watcher::Event> events = watcher.events();
+
+  Future<Watcher::Event> event = events.get();
+  ASSERT_SOME(os::write(path, "hello", true));
+  AWAIT_READY(event);
+  ASSERT_EQ(Watcher::Event::Write, event->type);
+  ASSERT_EQ(path, event->path);
+}
+
+
+TEST_F(IOTest, WatcherRename) {
+  string path = path::join(sandbox.get(), "test_file");
+  string new_path = path::join(sandbox.get(), "renamed");
+
+  ASSERT_SOME(os::touch(path));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path));
+  Queue<Watcher::Event> events = watcher.events();
+
+  ASSERT_SOME(os::rename(path, new_path, true));
+
+  Future<Watcher::Event> event = events.get();
+  AWAIT_READY(event);
+  ASSERT_EQ(Watcher::Event::Rename, event->type);
+  ASSERT_EQ(path, event->path);
+}
+
+
+TEST_F(IOTest, WatcherRm) {
+  string path = path::join(sandbox.get(), "test_file");
+
+  ASSERT_SOME(os::touch(path));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path));
+  Queue<Watcher::Event> events = watcher.events();
+
+  ASSERT_SOME(os::rm(path));
+
+  Future<Watcher::Event> event = events.get();
+  AWAIT_READY(event);
+  ASSERT_EQ(Watcher::Event::Remove, event->type);
+  ASSERT_EQ(path, event->path);
+}
+
+
+TEST_F(IOTest, WatcherAddMultipleFiles) {
+  string path1 = path::join(sandbox.get(), "test_file1");
+  string path2 = path::join(sandbox.get(), "test_file2");
+  hashset<string> paths = {path1, path2};
+
+
+  ASSERT_SOME(os::touch(path1));
+  ASSERT_SOME(os::touch(path2));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path1));
+  CHECK_NOTERROR(watcher.add(path2));
+
+  Queue<Watcher::Event> events = watcher.events();
+
+  ASSERT_SOME(os::write(path1, "hello"));
+  ASSERT_SOME(os::write(path2, "hello"));
+  Future<Watcher::Event> event;
+  for (int i = 0; i < 2; ++i) {
+    event = events.get();
+    AWAIT_READY(event);
+    ASSERT_EQ(Watcher::Event::Write, event->type);
+    paths.erase(event->path);
+  }
+
+  EXPECT_EQ(0u, paths.size());
+}
+
+
+TEST_F(IOTest, WatcherAddAddedFile) {
+  string path = path::join(sandbox.get(), "test_file");
+
+  ASSERT_SOME(os::touch(path));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path));
+
+  EXPECT_ERROR(watcher.add(path));
+}
+
+
+TEST_F(IOTest, WatcherAddDirectory) {
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  EXPECT_ERROR(watcher.add(sandbox.get()));
+}
+
+
+TEST_F(IOTest, WatcherRemove) {
+  string path1 = path::join(sandbox.get(), "test_file1");
+  string path2 = path::join(sandbox.get(), "test_file2");
+
+
+  ASSERT_SOME(os::touch(path1));
+  ASSERT_SOME(os::touch(path2));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path1));
+  CHECK_NOTERROR(watcher.add(path2));
+
+  CHECK_NOTERROR(watcher.remove(path1));
+
+  Queue<Watcher::Event> events = watcher.events();
+
+  ASSERT_SOME(os::write(path1, "hello", true));
+  ASSERT_SOME(os::write(path2, "hello", true));
+
+  Future<Watcher::Event> event = events.get();
+  AWAIT_READY(event);
+  ASSERT_EQ(Watcher::Event::Write, event->type);
+  ASSERT_EQ(path2, event->path);
+}
+
+TEST_F(IOTest, WatcherRemoveRemovedFile) {
+  string path = path::join(sandbox.get(), "test_file");
+
+  ASSERT_SOME(os::touch(path));
+
+  Watcher watcher = CHECK_NOTERROR(io::create_watcher());
+
+  CHECK_NOTERROR(watcher.add(path));
+
+  CHECK_NOTERROR(watcher.remove(path));
+  CHECK_NOTERROR(watcher.remove(path));
 }
