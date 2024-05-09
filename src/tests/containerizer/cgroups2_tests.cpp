@@ -79,7 +79,7 @@ protected:
 
     Try<Nothing> result = cgroups2::controllers::enable(
         cgroups2::ROOT_CGROUP,
-        vector<string>(to_enable.begin(), to_enable.end()));
+        to_enable);
 
     if (result.isSome()) {
       enabled_controllers = enabled_controllers | to_enable;
@@ -256,7 +256,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_CpuStats)
   ASSERT_SOME(enable_controllers({"cpu"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"cpu"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"cpu"})));
   ASSERT_SOME(cgroups2::cpu::stats(TEST_CGROUP));
 }
 
@@ -273,8 +273,8 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_EnableAndDisable)
   EXPECT_EQ(0u, enabled->count("cpu"));
 
   // Enable "cpu".
-  EXPECT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"cpu"}));
-  EXPECT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"cpu"})); // NOP
+  EXPECT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"cpu"})));
+  EXPECT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"cpu"}))); // NOP
 
   // Check that "cpu" is enabled.
   enabled = cgroups2::controllers::enabled(TEST_CGROUP);
@@ -282,8 +282,8 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_EnableAndDisable)
   EXPECT_EQ(1u, enabled->count("cpu"));
 
   // Disable "cpu".
-  EXPECT_SOME(cgroups2::controllers::disable(TEST_CGROUP, {"cpu"}));
-  EXPECT_SOME(cgroups2::controllers::disable(TEST_CGROUP, {"cpu"})); // NOP
+  EXPECT_SOME(cgroups2::controllers::disable(TEST_CGROUP, set<string>({"cpu"})));
+  EXPECT_SOME(cgroups2::controllers::disable(TEST_CGROUP, set<string>({"cpu"}))); // NOP
 
   // Check that "cpu" not enabled.
   enabled = cgroups2::controllers::enabled(TEST_CGROUP);
@@ -297,7 +297,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_CpuBandwidthLimit)
   ASSERT_SOME(enable_controllers({"cpu"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"cpu"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"cpu"})));
 
   Try<cpu::BandwidthLimit> limit = cgroups2::cpu::max(TEST_CGROUP);
   ASSERT_SOME(limit);
@@ -327,7 +327,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryUsage)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   // Does not exist for the root cgroup.
   EXPECT_ERROR(cgroups2::memory::usage(cgroups2::ROOT_CGROUP));
@@ -341,7 +341,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryStats)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
   ASSERT_SOME(cgroups2::memory::stats(TEST_CGROUP));
 }
 
@@ -351,7 +351,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryLow)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   const Bytes bytes = Bytes(os::pagesize()) * 5;
 
@@ -369,7 +369,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryMinimum)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   const Bytes bytes = Bytes(os::pagesize()) * 5;
 
@@ -387,7 +387,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryMaximum)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   Bytes limit = Bytes(os::pagesize()) * 5;
 
@@ -408,7 +408,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemorySoftMaximum)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   Bytes limit = Bytes(os::pagesize()) * 5;
 
@@ -431,7 +431,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_MemoryBytesRounding)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   const Bytes bytes = Bytes(os::pagesize());
 
@@ -515,7 +515,7 @@ TEST_F(Cgroups2Test, ROOT_CGROUPS2_OomDetection)
   ASSERT_SOME(enable_controllers({"memory"}));
 
   ASSERT_SOME(cgroups2::create(TEST_CGROUP));
-  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, {"memory"}));
+  ASSERT_SOME(cgroups2::controllers::enable(TEST_CGROUP, set<string>({"memory"})));
 
   const string leaf_cgroup = TEST_CGROUP + "/leaf";
   ASSERT_SOME(cgroups2::create(leaf_cgroup));

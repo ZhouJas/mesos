@@ -217,7 +217,7 @@ Future<Option<ContainerLaunchInfo>> Cgroups2IsolatorProcess::prepare(
     }
 
     Try<Nothing> enable =
-      cgroups2::controllers::enable(nonLeafCgroup, {controller->name()});
+      cgroups2::controllers::enable(nonLeafCgroup, set<string>({controller->name()}));
     if (enable.isError()) {
       return Failure("Failed to enable controller '" + controller->name() + "'"
                      " in cgroup '" + nonLeafCgroup + "': " + enable.error());

@@ -806,7 +806,7 @@ void ContainerizerTest<slave::MesosContainerizer>::SetUpCgroupsV2()
       cgroups2::ROOT_CGROUP);
   ASSERT_SOME(_controllers);
   subsystems = *_controllers;
-  vector<string> controllers(std::make_move_iterator(_controllers->begin()),
+  set<string> controllers(std::make_move_iterator(_controllers->begin()),
                              std::make_move_iterator(_controllers->end()));
 
   // Enable all of the controllers inside of the test root cgroup so they
