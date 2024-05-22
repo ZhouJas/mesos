@@ -72,6 +72,7 @@ const char RESOURCES_TARGET_FILE[] = "resources.target";
 const char RESOURCE_PROVIDER_STATE_FILE[] = "resource_provider.state";
 const char OPERATION_UPDATES_FILE[] = "operation.updates";
 const char VOLUME_GIDS_FILE[] = "volume_gids";
+const char DEVICE_INFO_FILE[] = "device.info";
 
 
 const char CONTAINERS_DIR[] = "containers";
@@ -806,6 +807,11 @@ string getPersistentVolumePath(
 string getVolumeGidsPath(const string& rootDir)
 {
   return path::join(rootDir, "volume_gid_manager", VOLUME_GIDS_FILE);
+}
+
+string getDevicesInfoPath(const string& rootDir) {
+
+  return path::join(rootDir, "device_manager", DEVICE_INFO_FILE);
 }
 
 

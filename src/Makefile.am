@@ -427,7 +427,9 @@ CXX_PROTOS +=								\
   slave/containerizer/mesos/isolators/volume/csi/state.pb.cc		\
   slave/containerizer/mesos/isolators/volume/csi/state.pb.h		\
   slave/volume_gid_manager/state.pb.cc					\
-  slave/volume_gid_manager/state.pb.h
+  slave/volume_gid_manager/state.pb.h           \
+  slave/device_manager/state.pb.cc					\
+  slave/device_manager/state.pb.h
 
 CXX_PROTOS +=								\
   resource_provider/storage/disk_profile.pb.cc				\
@@ -1040,7 +1042,8 @@ libmesos_no_3rdparty_la_SOURCES =					\
   slave/containerizer/mesos/isolators/docker/volume/state.proto		\
   slave/containerizer/mesos/isolators/network/cni/spec.proto		\
   slave/containerizer/mesos/isolators/volume/csi/state.proto		\
-  slave/volume_gid_manager/state.proto
+  slave/volume_gid_manager/state.proto    \
+  slave/device_manager/state.proto
 
 # TODO(tillt): Remove authentication/cram_md5/* which will enable us to
 # lose the immediate cyrus-sasl2 dependency.
@@ -1496,7 +1499,10 @@ MESOS_LINUX_FILES =									\
   slave/containerizer/mesos/isolators/cgroups2/controllers/memory.cpp    \
   slave/containerizer/mesos/isolators/cgroups2/controllers/memory.hpp    \
   slave/containerizer/mesos/isolators/cgroups2/controllers/perf_event.cpp    \
-  slave/containerizer/mesos/isolators/cgroups2/controllers/perf_event.hpp
+  slave/containerizer/mesos/isolators/cgroups2/controllers/perf_event.hpp    \
+  slave/device_manager/device_manager.cpp    \
+  slave/device_manager/device_manager.hpp    \
+  slave/device_manager/state.hpp
 
 if ENABLE_XFS_DISK_ISOLATOR
 MESOS_LINUX_FILES +=							\
