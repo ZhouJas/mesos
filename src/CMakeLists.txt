@@ -99,6 +99,7 @@ if (NOT WIN32)
   PROTOC_GENERATE(INTERNAL TARGET slave/containerizer/mesos/isolators/volume/csi/state)
   PROTOC_GENERATE(INTERNAL TARGET slave/containerizer/mesos/provisioner/docker/message)
   PROTOC_GENERATE(INTERNAL TARGET slave/volume_gid_manager/state)
+  PROTOC_GENERATE(INTERNAL TARGET slave/device_manager/state)
 endif ()
 
 
@@ -349,7 +350,8 @@ set(LINUX_SRC
   slave/containerizer/mesos/isolators/cgroups2/controllers/core.cpp
   slave/containerizer/mesos/isolators/cgroups2/controllers/cpu.cpp
   slave/containerizer/mesos/isolators/cgroups2/controllers/memory.cpp
-  slave/containerizer/mesos/isolators/cgroups2/controllers/perf_event.cpp)
+  slave/containerizer/mesos/isolators/cgroups2/controllers/perf_event.cpp
+  slave/device_manager/device_manager.cpp)
 
 if (ENABLE_XFS_DISK_ISOLATOR)
   list(APPEND LINUX_SRC
