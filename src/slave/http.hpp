@@ -123,6 +123,8 @@ private:
   process::Future<JSON::Array> __containers(
       const process::Owned<ObjectApprovers>& approvers,
       Option<IDAcceptor<ContainerID>> selectContainerId,
+      Option<IDAcceptor<ExecutorID>> selectExecutorId,
+      Option<IDAcceptor<FrameworkID>> selectFrameworkId,
       bool showNestedContainers,
       bool showStandaloneContainers) const;
 
