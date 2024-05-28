@@ -222,7 +222,8 @@ Try<Containerizer*> Containerizer::create(
     SecretResolver* secretResolver,
     VolumeGidManager* volumeGidManager,
     PendingFutureTracker* futureTracker,
-    CSIServer* csiServer)
+    CSIServer* csiServer,
+    DeviceManager* deviceManager)
 {
   // Get the set of containerizer types.
   const vector<string> _types = strings::split(flags.containerizers, ",");
@@ -300,7 +301,8 @@ Try<Containerizer*> Containerizer::create(
           nvidia,
           volumeGidManager,
           futureTracker,
-          csiServer);
+          csiServer,
+          deviceManager);
 
       if (containerizer.isError()) {
         return Error("Could not create MesosContainerizer: " +

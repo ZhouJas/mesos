@@ -45,6 +45,8 @@
 
 #include "slave/containerizer/fetcher.hpp"
 
+#include "slave/device_manager/device_manager.hpp"
+
 namespace mesos {
 namespace internal {
 namespace slave {
@@ -80,7 +82,9 @@ public:
       SecretResolver* secretResolver = nullptr,
       VolumeGidManager* volumeGidManager = nullptr,
       PendingFutureTracker* futureTracker = nullptr,
-      CSIServer* csiServer = nullptr);
+      CSIServer* csiServer = nullptr,
+      DeviceManager* deviceManager = nullptr
+      );
 
   // Determine slave resources from flags, probing the system or
   // querying a delegate.
