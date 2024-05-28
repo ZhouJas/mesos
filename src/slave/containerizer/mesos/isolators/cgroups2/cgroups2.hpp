@@ -30,6 +30,7 @@
 #include "slave/containerizer/mesos/isolator.hpp"
 #include "slave/containerizer/mesos/isolators/cgroups2/controller.hpp"
 #include "slave/flags.hpp"
+#include "slave/device_manager/device_manager.hpp"
 
 namespace mesos {
 namespace internal {
@@ -57,7 +58,7 @@ namespace slave {
 class Cgroups2IsolatorProcess : public MesosIsolatorProcess
 {
 public:
-  static Try<mesos::slave::Isolator*> create(const Flags& flags);
+  static Try<mesos::slave::Isolator*> create(const Flags& flags, DeviceManager* deviceManager);
 
   ~Cgroups2IsolatorProcess() override;
 

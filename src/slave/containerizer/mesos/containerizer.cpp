@@ -188,7 +188,8 @@ Try<MesosContainerizer*> MesosContainerizer::create(
     const Option<NvidiaComponents>& nvidia,
     VolumeGidManager* volumeGidManager,
     PendingFutureTracker* futureTracker,
-    CSIServer* csiServer)
+    CSIServer* csiServer,
+    DeviceManager* deviceManager)
 {
   Try<hashset<string>> isolations = [&flags]() -> Try<hashset<string>> {
     const vector<string> tokens(strings::tokenize(flags.isolation, ","));
@@ -371,14 +372,14 @@ Try<MesosContainerizer*> MesosContainerizer::create(
 #ifdef __linux__
   // Initialize either the cgroups v2 or cgroups v1 isolator, based on what
   // is available on the host machine.
-  auto cgroupsIsolatorSelector = [] (const Flags& flags) -> Try<Isolator*> {
+  auto cgroupsIsolatorSelector = [&deviceManager] (const Flags& flags) -> Try<Isolator*> {
     Try<bool> mounted = cgroups2::mounted();
     if (mounted.isError()) {
       return Error("Failed to determine if the cgroup2 filesystem is mounted: "
                    + mounted.error());
     }
     if (*mounted) {
-      return Cgroups2IsolatorProcess::create(flags);
+      return Cgroups2IsolatorProcess::create(flags, deviceManager);
     }
     return CgroupsIsolatorProcess::create(flags);
   };

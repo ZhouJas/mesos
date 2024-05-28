@@ -77,7 +77,9 @@ public:
       const Option<NvidiaComponents>& nvidia = None(),
       VolumeGidManager* volumeGidManager = nullptr,
       PendingFutureTracker* futureTracker = nullptr,
-      CSIServer* csiServer = nullptr);
+      CSIServer* csiServer = nullptr,
+      DeviceManager* deviceManager = nullptr
+      );
 
   static Try<MesosContainerizer*> create(
       const Flags& flags,

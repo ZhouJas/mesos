@@ -95,6 +95,7 @@
 #include "slave/gc.hpp"
 #include "slave/slave.hpp"
 #include "slave/task_status_update_manager.hpp"
+#include "slave/device_manager/device_manager.hpp"
 
 #include "version/version.hpp"
 
@@ -553,11 +554,13 @@ int main(int argc, char** argv)
     LOG(INFO) << "Git SHA: " << build::GIT_SHA.get();
   }
 
+  DeviceManager* deviceManager = nullptr;
+
 #ifdef __linux__
   if (flags.agent_subsystems.isSome()) {
     // Use the cgroups v2 isolator if it is supported. Otherwise, use
     // the cgroups v1 isolator.
-    [&flags] () {
+    [&flags, &deviceManager] () {
       Try<bool> mounted = cgroups2::mounted();
       if (mounted.isError()) {
         EXIT(EXIT_FAILURE) << mounted.error();
@@ -572,6 +575,14 @@ int main(int argc, char** argv)
         }
         return;
       }
+
+      Try<DeviceManager*> _deviceManager = DeviceManager::create(flags);
+      if (_deviceManager.isError()) {
+        EXIT(EXIT_FAILURE) << "Failed to initialize device manager: "
+                           << _deviceManager.error();
+      }
+
+      deviceManager = _deviceManager.get();
 
       // Initialize a cgroups hierarchy for each of the controllers that
       // are requested, create the root Mesos Agent's cgroup, and move the
@@ -784,7 +795,8 @@ int main(int argc, char** argv)
       secretResolver.get(),
       volumeGidManager,
       futureTracker.get(),
-      csiServer.get());
+      csiServer.get(),
+      deviceManager);
 
   if (containerizer.isError()) {
     EXIT(EXIT_FAILURE)
@@ -976,6 +988,7 @@ int main(int argc, char** argv)
 
 #ifndef __WINDOWS__
   delete volumeGidManager;
+  delete deviceManager;
 #endif // __WINDOWS__
 
   delete secretResolver.get();
