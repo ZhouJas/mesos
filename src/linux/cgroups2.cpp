@@ -1112,44 +1112,110 @@ public:
     });
   }
 
-  Try<Nothing> allow(const Entry entry) { return addDevice(entry, true);  }
-  Try<Nothing>  deny(const Entry entry) { return addDevice(entry, false); }
-
-  ebpf::Program build()
+  Try<Nothing> configure(
+    const string& cgroup, const vector<Entry>& allow, const vector<Entry>& deny)
   {
-    if (!hasCatchAll) {
-      // Exit instructions.
-      // If no entry granted access, then deny the access.
+    // for each entry in allow list
+    // perform standard checks as seen in _add_device_checks,
+    // jump to next block if no match. If there's a match, move 1 to register 6 
+    // to mark match in allow then jump to the end of allow blocks
+
+    // after the end of allow blocks
+    // check if r6 == 1, go to deny blocks if true, else deny access by setting
+    // r0 to deny, and executing the exit instruction
+
+    // for each entry in deny list
+    // perform standard checks as seen in _add_device_checks,
+    // jump to next block if no match.  If there's a match, deny access and
+    // exit
+
+    // after the end of deny blocks
+    // if r6 == 1, grant access, else deny access
+
+    // We calculate the total jump distance to get to the end of allow blocks
+    foreach (const Entry& entry, allow) {
+      const Entry::Selector& selector = entry.selector;
+      const Entry::Access& access = entry.access;
+
+      bool check_major = selector.major.isSome();
+      bool check_minor = selector.minor.isSome();
+      bool check_type = selector.type != Entry::Selector::Type::ALL;
+      bool check_access = !access.mknod || !access.read || !access.write;
+      short nxt_blk_jmp_size = 2 + (check_major ? 1 : 0) +
+                               (check_minor ? 1 : 0) + (check_access ? 3 : 0) +
+                               (check_type ? 1 : 0);
+      end_of_allow_jmp_size += nxt_blk_jmp_size;
+    }
+
+    program.append({BPF_MOV64_IMM(BPF_REG_6, DENY_ACCESS),});
+
+    foreach (const Entry& entry, allow) {
+      _add_device_checks(entry);
+
+      // mark match in allow and jump
       program.append({
-        BPF_MOV64_IMM (BPF_REG_0, DENY_ACCESS),
+        BPF_MOV64_IMM(BPF_REG_6, ALLOW_ACCESS),
+        BPF_JMP_A(end_of_allow_jmp_size),
+      });
+    }
+
+    // check if allow flag is set, deny access if not
+    program.append({
+      BPF_JMP_IMM(BPF_JNE, BPF_REG_6, ALLOW_ACCESS, 1),
+      BPF_JMP_A(2),
+      BPF_MOV64_IMM(BPF_REG_0, DENY_ACCESS),
+      BPF_EXIT_INSN(),
+    });
+
+    // check if entry is in deny list
+    foreach (const Entry& entry, deny) {
+      _add_device_checks(entry);
+
+      // Deny access if device matches
+      program.append({
+        BPF_MOV64_IMM(BPF_REG_0, DENY_ACCESS),
         BPF_EXIT_INSN(),
       });
     }
-    return program;
+
+    // check if allow flag is set, deny access if not
+    program.append({
+      BPF_JMP_IMM(BPF_JNE, BPF_REG_6, ALLOW_ACCESS, 2),
+      BPF_MOV64_IMM(BPF_REG_0, ALLOW_ACCESS),
+      BPF_EXIT_INSN(),
+      BPF_MOV64_IMM(BPF_REG_0, DENY_ACCESS),
+      BPF_EXIT_INSN(),
+    });
+
+    Try<Nothing> attach = ebpf::cgroups2::attach(
+        cgroups2::path(cgroup),
+        program);
+
+    if (attach.isError()) {
+      return Error("Failed to attach BPF_PROG_TYPE_CGROUP_DEVICE program: " +
+                  attach.error());
+    }
+
+    return Nothing();
   }
 
 private:
-  Try<Nothing> addDevice(const Entry entry, bool allow)
+  Try<Nothing> _add_device_checks(const Entry& entry)
   {
-    if (hasCatchAll) {
-      return Nothing();
-    }
-
     // We create a block of bytecode with the format:
     // 1. Major Version Check
     // 2. Minor Version Check
     // 3. Type Check
     // 4. Access Check
-    // 5. Allow/Deny Access
+    // 5. Allow/Deny Access with different behavior
     //
     // 6. NEXT BLOCK
     //
     // Either:
     // 1. The device access is matched by (1,2,3,4) and the Allow/Deny access
-    //    block (5) is executed.
+    //    block is executed.
     // 2. One of (1,2,3,4) does not match the requested access and we skip
     //    to the next block (6).
-
     const Entry::Selector& selector = entry.selector;
     const Entry::Access& access = entry.access;
 
@@ -1158,26 +1224,27 @@ private:
     bool check_type = selector.type != Entry::Selector::Type::ALL;
     bool check_access = !access.mknod || !access.read || !access.write;
 
-    // Number of instructions to the [NEXT BLOCK]. This is used if a check
-    // fails (meaning this entry does not apply) and we want to skip the
-    // subsequent checks.
-    short jmp_size = 1 + (check_major ? 1 : 0) + (check_minor ? 1 : 0) +
-                     (check_access ? 3 : 0) + (check_type ? 1 : 0);
+    short nxt_blk_jmp_size = 1 + (check_major ? 1 : 0) + (check_minor ? 1 : 0) +
+                            (check_access ? 3 : 0) + (check_type ? 1 : 0);
+
+    end_of_allow_jmp_size -= (nxt_blk_jmp_size + 1);
 
     // Check major version (r4) against entry.
     if (check_major) {
       program.append({
-        BPF_JMP_IMM(BPF_JNE, BPF_REG_4, (int)selector.major.get(), jmp_size),
+        BPF_JMP_IMM(
+          BPF_JNE, BPF_REG_4, (int)selector.major.get(), nxt_blk_jmp_size),
       });
-      --jmp_size;
+      --nxt_blk_jmp_size;
     }
 
     // Check minor version (r5) against entry.
     if (check_minor) {
       program.append({
-        BPF_JMP_IMM(BPF_JNE, BPF_REG_5, (int)selector.minor.get(), jmp_size),
+        BPF_JMP_IMM(
+          BPF_JNE, BPF_REG_5, (int)selector.minor.get(), nxt_blk_jmp_size),
       });
-      --jmp_size;
+      --nxt_blk_jmp_size;
     }
 
     // Check type (r2) against entry.
@@ -1192,9 +1259,9 @@ private:
       }();
 
       program.append({
-        BPF_JMP_IMM(BPF_JNE, BPF_REG_2, bpf_type, jmp_size),
+        BPF_JMP_IMM(BPF_JNE, BPF_REG_2, bpf_type, nxt_blk_jmp_size),
       });
-      --jmp_size;
+      --nxt_blk_jmp_size;
     }
 
     // Check access (r3) against entry.
@@ -1208,33 +1275,23 @@ private:
         BPF_MOV32_REG(BPF_REG_1, BPF_REG_3),
         BPF_ALU32_IMM(BPF_AND, BPF_REG_1, bpf_access),
         BPF_JMP_REG(
-          BPF_JNE, BPF_REG_1, BPF_REG_3, static_cast<short>(jmp_size - 2)),
+          BPF_JNE,
+          BPF_REG_1,
+          BPF_REG_3,
+          static_cast<short>(nxt_blk_jmp_size - 2)),
       });
-      jmp_size -= 3;
+      nxt_blk_jmp_size -= 3;
     }
-
-    if (!check_major && !check_minor && !check_type && !check_access) {
-      // The exit instructions as well as any additional device entries would
-      // generate unreachable blocks.
-      hasCatchAll = true;
-    }
-
-    // Allow/Deny access block.
-    program.append({
-      BPF_MOV64_IMM(BPF_REG_0, allow ? ALLOW_ACCESS : DENY_ACCESS),
-      BPF_EXIT_INSN(),
-    });
 
     return Nothing();
   }
 
   ebpf::Program program;
 
-  // Whether the program has a device entry that allows or denies ALL accesses.
-  // Such cases need to be specially handled because any instructions added
-  // after it will be unreachable, and thus will cause the eBPF verifier to
-  // reject the program.
-  bool hasCatchAll = false;
+
+  // used to determine how far we need to jump to get to the end of the allow
+  // blocks when a match is found
+  short end_of_allow_jmp_size = 0;
 
   static const int ALLOW_ACCESS = 1;
   static const int DENY_ACCESS = 0;
@@ -1247,22 +1304,12 @@ Try<Nothing> configure(
     const vector<Entry>& deny)
 {
   DeviceProgram program = DeviceProgram();
-  foreach (const Entry entry, allow) {
-    program.allow(entry);
-  }
-  foreach (const Entry entry, deny) {
-    program.deny(entry);
-  }
+  Try<Nothing> configure = program.configure(cgroup, allow, deny); 
 
-  Try<Nothing> attach = ebpf::cgroups2::attach(
-      cgroups2::path(cgroup),
-      program.build());
-
-  if (attach.isError()) {
-    return Error("Failed to attach BPF_PROG_TYPE_CGROUP_DEVICE program: " +
-                 attach.error());
+  if (configure.isError()) {
+    return Error("Failed to configure BPF_PROG_TYPE_CGROUP_DEVICE program: " +
+                 configure.error());
   }
-
   return Nothing();
 }
 

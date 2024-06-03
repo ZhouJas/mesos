@@ -663,6 +663,25 @@ INSTANTIATE_TEST_CASE_P(
             // read is blocked
           vector<OpenArgs>{{os::DEV_NULL, O_RDWR}, {os::DEV_NULL, O_RDONLY}}
         },
+        // Do not allow device if it's on both allow and deny list
+        DeviceControllerTestParams{
+          vector<devices::Entry>{
+            *devices::Entry::parse("c 1:3 w"),
+            *devices::Entry::parse("b 1:3 w")},
+          vector<devices::Entry>{*devices::Entry::parse("c 1:3 w")},
+          vector<OpenArgs>{},
+            // write-only is blocked
+          vector<OpenArgs>{{os::DEV_NULL, O_WRONLY}}
+        },
+        // Mismatched entry in deny list is ignored and write access is granted
+        DeviceControllerTestParams{
+          vector<devices::Entry>{*devices::Entry::parse("c 1:3 w")},
+          vector<devices::Entry>{*devices::Entry::parse("b 1:3 w")},
+            // write-only allowed
+          vector<OpenArgs>{{os::DEV_NULL, O_WRONLY}},
+            // read is blocked
+          vector<OpenArgs>{{os::DEV_NULL, O_RDWR}, {os::DEV_NULL, O_RDONLY}}
+        },
         // Access to /dev/null is denied because the allowed access is to
         // a different device type with the same major:minor numbers.
         DeviceControllerTestParams{

@@ -433,6 +433,10 @@ using cgroups::devices::Entry;
 // Configure the device access permissions for the cgroup. These permissions
 // are hierarchical. I.e. if a parent cgroup does not allow an access then
 // 'this' cgroup will be denied access.
+// For access to be granted, the requested access must be on the cgroup's allow
+// list, and not on the cgroup's deny list.
+// If the requested access matched with an entry on the allow list, but it also
+// matches an entry on the deny list of the cgroup, access will be denied.
 Try<Nothing> configure(
     const std::string& cgroup,
     const std::vector<Entry>& allow,
