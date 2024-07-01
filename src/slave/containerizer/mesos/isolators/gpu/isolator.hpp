@@ -37,6 +37,7 @@
 #include "slave/containerizer/mesos/isolators/gpu/allocator.hpp"
 #include "slave/containerizer/mesos/isolators/gpu/components.hpp"
 #include "slave/containerizer/mesos/isolators/gpu/volume.hpp"
+#include "slave/device_manager/device_manager.hpp"
 
 namespace mesos {
 namespace internal {
@@ -147,6 +148,75 @@ private:
   const std::map<Path, cgroups::devices::Entry> controlDeviceEntries;
 };
 
+class Cgroups2NvidiaGpuIsolatorProcess : public MesosIsolatorProcess
+{
+public:
+  static Try<mesos::slave::Isolator*> create(
+      const Flags& flags,
+      const NvidiaComponents& components,
+      DeviceManager* deviceManager
+      );
+
+  bool supportsNesting() override;
+  bool supportsStandalone() override;
+
+  process::Future<Nothing> recover(
+      const std::vector<mesos::slave::ContainerState>& states,
+      const hashset<ContainerID>& orphans) override;
+
+  process::Future<Option<mesos::slave::ContainerLaunchInfo>> prepare(
+      const ContainerID& containerId,
+      const mesos::slave::ContainerConfig& containerConfig) override;
+
+  process::Future<Nothing> update(
+      const ContainerID& containerId,
+      const Resources& resourceRequests,
+      const google::protobuf::Map<
+          std::string, Value::Scalar>& resourceLimits = {}) override;
+
+  process::Future<ResourceStatistics> usage(
+      const ContainerID& containerId) override;
+
+  process::Future<Nothing> cleanup(
+      const ContainerID& containerId) override;
+
+private:
+  Cgroups2NvidiaGpuIsolatorProcess(
+      const Flags& _flags,
+      const NvidiaGpuAllocator& _allocator,
+      const NvidiaVolume& _volume,
+      const std::map<Path, cgroups::devices::Entry>& _controlDeviceEntries,
+      DeviceManager* deviceManager
+      );
+
+  virtual process::Future<Option<mesos::slave::ContainerLaunchInfo>> _prepare(
+      const ContainerID& containerId,
+      const mesos::slave::ContainerConfig& containerConfig);
+
+  process::Future<Nothing> _update(
+      const ContainerID& containerId,
+      const std::set<Gpu>& allocation);
+
+  struct Info
+  {
+    Info(const ContainerID& _containerId, const std::string& _cgroup)
+      : containerId(_containerId), cgroup(_cgroup) {}
+
+    const ContainerID containerId;
+    const std::string cgroup;
+    std::set<Gpu> allocated;
+  };
+
+  const Flags flags;
+
+  // TODO(bmahler): Use Owned<Info>.
+  hashmap<ContainerID, Info*> infos;
+
+  NvidiaGpuAllocator allocator;
+  NvidiaVolume volume;
+  const std::map<Path, cgroups::devices::Entry> controlDeviceEntries;
+  DeviceManager* deviceManager;
+};
 } // namespace slave {
 } // namespace internal {
 } // namespace mesos {

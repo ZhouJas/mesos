@@ -519,7 +519,7 @@ Try<MesosContainerizer*> MesosContainerizer::create(
     // isolators, so that the nvidia gpu libraries '/usr/local/nvidia'
     // will not be overwritten.
     {"gpu/nvidia",
-      [&nvidia] (const Flags& flags) -> Try<Isolator*> {
+      [&nvidia, &deviceManager] (const Flags& flags) -> Try<Isolator*> {
         if (!nvml::isAvailable()) {
           return Error("Cannot create the Nvidia GPU isolator:"
                        " NVML is not available");
@@ -527,6 +527,15 @@ Try<MesosContainerizer*> MesosContainerizer::create(
 
         CHECK_SOME(nvidia)
           << "Nvidia components should be set when NVML is available";
+
+        Try<bool> mounted = cgroups2::mounted();
+        if (mounted.isError()) {
+          return Error("Failed to determine if the cgroup2 filesystem is mounted: "
+                      + mounted.error());
+        }
+        if (*mounted) {
+          return Cgroups2NvidiaGpuIsolatorProcess::create(flags, nvidia.get(), deviceManager);
+        }
 
         return NvidiaGpuIsolatorProcess::create(flags, nvidia.get());
       }},
